@@ -1,6 +1,18 @@
 import { useCallback, useRef } from "react";
 import type { DragItem } from "./types";
 
+interface SavedStyle {
+  el: HTMLElement;
+  position: string;
+  left: string;
+  top: string;
+  width: string;
+  height: string;
+  transform: string;
+  zIndex: string;
+  origOffsetY: number;
+}
+
 interface DragState {
   item: DragItem | null;
   startX: number;
@@ -9,6 +21,7 @@ interface DragState {
   offsetY: number;
   dragElement: HTMLElement | null;
   isDragging: boolean;
+  draggedElements: SavedStyle[];
 }
 
 export function useDragAndDrop(
@@ -22,6 +35,7 @@ export function useDragAndDrop(
     offsetY: 0,
     dragElement: null,
     isDragging: false,
+    draggedElements: [],
   });
 
   const getDropTarget = useCallback(
@@ -48,7 +62,10 @@ export function useDragAndDrop(
     if (!state.isDragging || !state.dragElement) return;
     const dx = clientX - state.startX;
     const dy = clientY - state.startY;
-    state.dragElement.style.transform = `translate(${dx}px, ${dy}px)`;
+    for (const saved of state.draggedElements) {
+      saved.el.style.left = `${state.offsetX + dx}px`;
+      saved.el.style.top = `${saved.origOffsetY + dy}px`;
+    }
   }, []);
 
   const handleEndEvent = useCallback(
@@ -56,9 +73,18 @@ export function useDragAndDrop(
       const state = dragState.current;
       if (!state.isDragging || !state.dragElement) return;
 
-      state.dragElement.style.transform = "";
-      state.dragElement.style.zIndex = "";
-      state.dragElement.classList.remove("dragging");
+      // Restore all dragged elements
+      for (const saved of state.draggedElements) {
+        saved.el.style.position = saved.position;
+        saved.el.style.left = saved.left;
+        saved.el.style.top = saved.top;
+        saved.el.style.width = saved.width;
+        saved.el.style.height = saved.height;
+        saved.el.style.transform = saved.transform;
+        saved.el.style.zIndex = saved.zIndex;
+        saved.el.classList.remove("dragging");
+      }
+      state.draggedElements = [];
       state.isDragging = false;
 
       const target = getDropTarget(clientX, clientY);
@@ -81,14 +107,51 @@ export function useDragAndDrop(
       const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
       const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
 
+      const rect = element.getBoundingClientRect();
+
       const state = dragState.current;
       state.item = item;
       state.startX = clientX;
       state.startY = clientY;
+      state.offsetX = rect.left;
+      state.offsetY = rect.top;
       state.dragElement = element;
       state.isDragging = true;
-      element.classList.add("dragging");
-      element.style.zIndex = "1000";
+
+      // Collect all sibling cards from the clicked one onwards
+      const siblings: HTMLElement[] = [element];
+      let next = element.nextElementSibling as HTMLElement | null;
+      while (next) {
+        if (next.classList.contains("card")) {
+          siblings.push(next);
+        }
+        next = next.nextElementSibling as HTMLElement | null;
+      }
+
+      // Save original styles and switch all to fixed positioning
+      state.draggedElements = siblings.map((el, i) => {
+        const r = el.getBoundingClientRect();
+        const saved: SavedStyle = {
+          el,
+          position: el.style.position,
+          left: el.style.left,
+          top: el.style.top,
+          width: el.style.width,
+          height: el.style.height,
+          transform: el.style.transform,
+          zIndex: el.style.zIndex,
+          origOffsetY: r.top,
+        };
+        el.style.position = "fixed";
+        el.style.left = `${r.left}px`;
+        el.style.top = `${r.top}px`;
+        el.style.width = `${r.width}px`;
+        el.style.height = `${r.height}px`;
+        el.style.transform = "";
+        el.classList.add("dragging");
+        el.style.zIndex = `${1000 + i}`;
+        return saved;
+      });
 
       const onMouseMove = (ev: MouseEvent) =>
         handleMoveEvent(ev.clientX, ev.clientY);
