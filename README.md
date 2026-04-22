@@ -2,4 +2,4 @@
 
 Klasyczny pasjans (Klondike Solitaire) w przeglądarce — za darmo, bez rejestracji.
 
-**[Zagraj teraz](https://waszkiewiczja.github.io/darmowy-pasjans-online/)**
+**[Darmowy Pasjans Online](https://waszkiewiczja.github.io/darmowy-pasjans-online/)**
